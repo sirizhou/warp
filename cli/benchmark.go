@@ -109,7 +109,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	monitor.SetLnLoggers(printInfo, printError)
 	defer monitor.Done()
 
-	monitor.InfoLn("Preparing server.")
+	monitor.InfoLn("Preparing server.") //print "Preparing server."
 	pgDone := make(chan struct{})
 	c := b.GetCommon()
 	c.Clear = !ctx.Bool("noclear")

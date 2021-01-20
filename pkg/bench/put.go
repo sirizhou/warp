@@ -33,7 +33,7 @@ type Put struct {
 
 // Prepare will create an empty bucket ot delete any content already there.
 func (u *Put) Prepare(ctx context.Context) error {
-	return u.createEmptyBucket(ctx)
+	return u.createEmptyBucket(ctx) //create bucket, delete all in bucket
 }
 
 // Start will execute the main benchmark.

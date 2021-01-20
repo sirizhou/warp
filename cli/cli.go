@@ -58,13 +58,16 @@ func Main(args []string) {
 	setMaxResources()
 
 	if len(args) > 1 {
-		switch args[1] {
+		switch args[1] { //args[1]:put
 		case appName, filepath.Base(args[0]):
+			//args[0]:"/home/intel/siri/warp/__debug_bin" (programName)
+			//filepath.Base:__debug_bin
 			mainComplete()
 			return
-		}
+		} //when debug, didn't enter the case
 	}
-	rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UnixNano()) //convert time to ms
+	//rand.Seed(seed int64) change seed to get different rand number group
 
 	probe.Init() // Set project's root source path.
 	probe.SetAppInfo("Release-Tag", pkg.ReleaseTag)
@@ -79,7 +82,7 @@ func Main(args []string) {
 	}
 
 	// Set the warp app name.
-	appName := filepath.Base(args[0])
+	appName := filepath.Base(args[0]) //appName:"__debug_bin"
 
 	// Run the app - exit on error.
 	if err := registerApp(appName, appCmds).Run(args); err != nil {
@@ -107,7 +110,7 @@ func init() {
 	benchCmds = a
 }
 
-var appCmds, benchCmds []cli.Command
+var appCmds, benchCmds []cli.Command //cli.Command type var
 
 func combineFlags(flags ...[]cli.Flag) []cli.Flag {
 	var dst []cli.Flag
@@ -130,8 +133,31 @@ func registerCmd(cmd cli.Command) {
 }
 
 func registerApp(name string, appCmds []cli.Command) *cli.App {
+	// name:"__debug_bin"
+	/*
+	    a := []cli.Command{
+	           mixedCmd,
+	           getCmd,
+	           putCmd,
+	           deleteCmd,
+	           listCmd,
+	           statCmd,
+	           selectCmd,
+	           versionedCmd,
+	   }
+	   b := []cli.Command{
+	           analyzeCmd,
+	           cmpCmd,
+	           mergeCmd,
+	           clientCmd,
+	   }
+	   appCmds = append(a, b...)
+	   benchCmds = a
+	*/
 	for _, cmd := range appCmds {
+		//_, cmd: key-value
 		registerCmd(cmd)
+		//collection of warp commands currently supported
 	}
 
 	cli.HelpFlag = cli.BoolFlag{
@@ -150,7 +176,7 @@ func registerApp(name string, appCmds []cli.Command) *cli.App {
 
 		cli.ShowAppHelp(ctx)
 	}
-	var afterExec func(ctx *cli.Context) error
+	var afterExec func(ctx *cli.Context) error //<func(*github.com/minio/cli.Context) error>
 	app.After = func(ctx *cli.Context) error {
 		if afterExec != nil {
 			return afterExec(ctx)

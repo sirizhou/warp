@@ -125,7 +125,7 @@ func (c *Common) createEmptyBucket(ctx context.Context) error {
 
 	if c.Clear {
 		console.Infof("\rClearing Bucket %q...", c.Bucket)
-		c.deleteAllInBucket(ctx)
+		c.deleteAllInBucket(ctx) //delete all data in warp-benchmark-bucket
 	}
 	return nil
 }
