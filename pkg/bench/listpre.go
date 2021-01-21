@@ -19,20 +19,20 @@ package bench
 
 import (
 	"context"
+	"encoding/gob"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
-
-	"github.com/minio/minio-go/v7"
 
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/generator"
 )
 
-// List benchmarks listing speed.
-type List struct {
+// Listpre uploading objects before listing.
+type Listpre struct {
 	CreateObjects int
 	NoPrefix      bool
 	Collector     *Collector
@@ -43,7 +43,7 @@ type List struct {
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (d *List) Prepare(ctx context.Context) error {
+func (d *Listpre) Prepare(ctx context.Context) error {
 	if err := d.createEmptyBucket(ctx); err != nil { //if bucket exist, delete all in bucket
 		return err
 	}
@@ -139,86 +139,100 @@ func (d *List) Prepare(ctx context.Context) error {
 	rand.Shuffle(len(a), func(i, j int) { //didn't use rand.Seed, so it's pesudo random number
 		a[i], a[j] = a[j], a[i] //swap
 	}) //shuffle objects
+	// save d which type is *Listpre
+	file, err := os.Create("objectInfo")
+	if err != nil {
+		fmt.Println(err)
+	}
+	enc := gob.NewEncoder(file)
+	err2 := enc.Encode(a)
+	if err2 != nil {
+		fmt.Println(err2)
+	}
 	return groupErr
 }
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
-	var wg sync.WaitGroup
-	wg.Add(d.Concurrency)
+func (d *Listpre) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+
+	//var wg sync.WaitGroup
+	//wg.Add(d.Concurrency)
 	c := d.Collector
-	if d.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "LIST", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
-	}
-	// Non-terminating context.
-	nonTerm := context.Background()
+	/*
+		if d.AutoTermDur > 0 {
+			ctx = c.AutoTerm(ctx, "LISTPRE", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
+		}
+		// Non-terminating context.
+		nonTerm := context.Background()
 
-	for i := 0; i < d.Concurrency; i++ {
-		go func(i int) {
-			rcv := c.Receiver()
-			defer wg.Done()
-			done := ctx.Done()
-			objs := d.objects[i]
-			wantN := len(objs)
-			if d.NoPrefix {
-				wantN *= d.Concurrency
-			}
-
-			<-wait
-			for {
-				select {
-				case <-done:
-					return
-				default:
+		for i := 0; i < d.Concurrency; i++ {
+			go func(i int) {
+				rcv := c.Receiver()
+				defer wg.Done()
+				done := ctx.Done()
+				objs := d.objects[i]
+				wantN := len(objs)
+				if d.NoPrefix {
+					wantN *= d.Concurrency
 				}
 
-				prefix := objs[0].Prefix
-				client, cldone := d.Client()
-				op := Operation{
-					File:     prefix,
-					OpType:   "LIST",
-					Thread:   uint16(i),
-					Size:     0,
-					Endpoint: client.EndpointURL().String(),
-				}
-				op.Start = time.Now()
-
-				// List all objects with prefix
-				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix, Recursive: true})
-
-				// Wait for errCh to close.
+				<-wait
 				for {
-					err, ok := <-listCh
-					if !ok {
-						break
+					select {
+					case <-done:
+						return
+					default:
 					}
-					if err.Err != nil {
-						d.Error(err.Err)
-						op.Err = err.Err.Error()
+
+					prefix := objs[0].Prefix
+					client, cldone := d.Client()
+					op := Operation{
+						File:     prefix,
+						OpType:   "LISTPRE",
+						Thread:   uint16(i),
+						Size:     0,
+						Endpoint: client.EndpointURL().String(),
 					}
-					op.ObjPerOp++
-					if op.FirstByte == nil {
-						now := time.Now()
-						op.FirstByte = &now
+					op.Start = time.Now()
+
+					// List all objects with prefix
+					listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix, Recursive: true})
+
+					// Wait for errCh to close.
+					for {
+						err, ok := <-listCh
+						if !ok {
+							break
+						}
+						if err.Err != nil {
+							d.Error(err.Err)
+							op.Err = err.Err.Error()
+						}
+						op.ObjPerOp++
+						if op.FirstByte == nil {
+							now := time.Now()
+							op.FirstByte = &now
+						}
 					}
+					if op.ObjPerOp != wantN {
+						if op.Err == "" {
+							op.Err = fmt.Sprintf("Unexpected object count, want %d, got %d", wantN, op.ObjPerOp)
+						}
+					}
+					op.End = time.Now()
+					cldone()
+					rcv <- op
 				}
-				if op.ObjPerOp != wantN {
-					if op.Err == "" {
-						op.Err = fmt.Sprintf("Unexpected object count, want %d, got %d", wantN, op.ObjPerOp)
-					}
-				}
-				op.End = time.Now()
-				cldone()
-				rcv <- op
-			}
-		}(i)
-	}
-	wg.Wait()
+			}(i)
+		}
+		wg.Wait()
+	*/
 	return c.Close(), nil
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (d *List) Cleanup(ctx context.Context) {
-	d.deleteAllInBucket(ctx, generator.MergeObjectPrefixes(d.objects)...)
+func (d *Listpre) Cleanup(ctx context.Context) {
+	//d.deleteAllInBucket(ctx, generator.MergeObjectPrefixes(d.objects)...)
+
 }

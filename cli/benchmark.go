@@ -92,9 +92,9 @@ var benchFlags = []cli.Flag{
 }
 
 // runBench will run the supplied benchmark and save/print the analysis.
-func runBench(ctx *cli.Context, b bench.Benchmark) error {
+func runBench(ctx *cli.Context, b bench.Benchmark) error { //ctx:::parentContex:::flagSet:::args: list paremeter! b:CreateObjects:10000
 	activeBenchmarkMu.Lock()
-	ab := activeBenchmark
+	ab := activeBenchmark //var activeBenchmark *clientBenchmark
 	activeBenchmarkMu.Unlock()
 	b.GetCommon().Error = printError
 	if ab != nil {
@@ -107,7 +107,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 
 	monitor := api.NewBenchmarkMonitor(ctx.String(serverFlagName))
 	monitor.SetLnLoggers(printInfo, printError)
-	defer monitor.Done()
+	defer monitor.Done() //delay to exacute, exacute before return
 
 	monitor.InfoLn("Preparing server.") //print "Preparing server."
 	pgDone := make(chan struct{})
@@ -159,14 +159,14 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 		close(pgDone)
 	}
 
-	err := b.Prepare(context.Background())
+	var err error = b.Prepare(context.Background()) //b includes objects info after Preoare
 	fatalIf(probe.NewError(err), "Error preparing server")
 	if c.PrepareProgress != nil {
 		close(c.PrepareProgress)
 		<-pgDone
 	}
 
-	// Start after waiting a second or until we reached the start time.
+	// Start after waiting a second or until we reached the start time.  //Starting benchmark in 3s...
 	tStart := time.Now().Add(time.Second * 3)
 	if st := ctx.String("syncstart"); st != "" {
 		startTime := parseLocalTime(st)
@@ -227,7 +227,7 @@ func runBench(ctx *cli.Context, b bench.Benchmark) error {
 	} else {
 		close(pgDone)
 	}
-	ops, _ := b.Start(ctx2, start)
+	ops, _ := b.Start(ctx2, start) //-->pkg/bench/
 	cancel()
 	<-pgDone
 

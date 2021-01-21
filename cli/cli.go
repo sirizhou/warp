@@ -96,6 +96,8 @@ func init() {
 		putCmd,
 		deleteCmd,
 		listCmd,
+		listpreCmd,
+		listonlyCmd,
 		statCmd,
 		selectCmd,
 		versionedCmd,

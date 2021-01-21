@@ -19,9 +19,11 @@ package bench
 
 import (
 	"context"
+	"encoding/gob"
 	"fmt"
 	"math/rand"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -31,8 +33,8 @@ import (
 	"github.com/minio/warp/pkg/generator"
 )
 
-// List benchmarks listing speed.
-type List struct {
+// Listonly benchmarks listing speed.
+type Listonly struct {
 	CreateObjects int
 	NoPrefix      bool
 	Collector     *Collector
@@ -43,10 +45,25 @@ type List struct {
 
 // Prepare will create an empty bucket or delete any content already there
 // and upload a number of objects.
-func (d *List) Prepare(ctx context.Context) error {
-	if err := d.createEmptyBucket(ctx); err != nil { //if bucket exist, delete all in bucket
-		return err
+func (d *Listonly) Prepare(ctx context.Context) error {
+	// listonly don't need to clean up;
+	//if err := d.createEmptyBucket(ctx); err != nil { //if bucket exist, delete all in bucket
+	//	return err
+	//}
+
+	// loading obj info
+	file, err := os.Open("objectInfo")
+	if err != nil {
+		fmt.Println(err)
 	}
+	var objInfo []generator.Objects
+	dec := gob.NewDecoder(file)
+	err2 := dec.Decode(&objInfo)
+	if err2 != nil {
+		fmt.Println(err2)
+		return nil
+	}
+
 	src := d.Source()
 	objPerPrefix := d.CreateObjects / d.Concurrency
 	if d.NoPrefix {
@@ -65,7 +82,7 @@ func (d *List) Prepare(ctx context.Context) error {
 		go func(i int) {
 			defer wg.Done()
 			src := d.Source()
-			opts := d.PutOpts
+			//opts := d.PutOpts
 			rcv := d.Collector.Receiver()
 			done := ctx.Done()
 			exists := make(map[string]struct{}, objPerPrefix)
@@ -76,7 +93,7 @@ func (d *List) Prepare(ctx context.Context) error {
 					return
 				default:
 				}
-				obj := src.Object()
+				var obj *generator.Object = &objInfo[i][j]
 				// Assure we don't have duplicates
 				for {
 					if _, ok := exists[obj.Name]; ok {
@@ -95,31 +112,33 @@ func (d *List) Prepare(ctx context.Context) error {
 					ObjPerOp: 1,
 					Endpoint: client.EndpointURL().String(),
 				}
-				opts.ContentType = obj.ContentType
-				op.Start = time.Now()
-				res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
-				op.End = time.Now()
-				if err != nil {
-					err := fmt.Errorf("upload error: %w", err)
-					d.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
+				//opts.ContentType = obj.ContentType
+				/*
+					op.Start = time.Now()
+					res, err := client.PutObject(ctx, d.Bucket, obj.Name, obj.Reader, obj.Size, opts)
+					op.End = time.Now()
+					if err != nil {
+						err := fmt.Errorf("upload error: %w", err)
+						d.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
 					}
-					mu.Unlock()
-					return
-				}
-				obj.VersionID = res.VersionID
-				if res.Size != obj.Size {
-					err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
-					d.Error(err)
-					mu.Lock()
-					if groupErr == nil {
-						groupErr = err
+					obj.VersionID = res.VersionID
+					if res.Size != obj.Size {
+						err := fmt.Errorf("short upload. want: %d, got %d", obj.Size, res.Size)
+						d.Error(err)
+						mu.Lock()
+						if groupErr == nil {
+							groupErr = err
+						}
+						mu.Unlock()
+						return
 					}
-					mu.Unlock()
-					return
-				}
+				*/
 				cldone()
 				mu.Lock()
 				obj.Reader = nil
@@ -144,12 +163,12 @@ func (d *List) Prepare(ctx context.Context) error {
 
 // Start will execute the main benchmark.
 // Operations should begin executing when the start channel is closed.
-func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
+func (d *Listonly) Start(ctx context.Context, wait chan struct{}) (Operations, error) {
 	var wg sync.WaitGroup
 	wg.Add(d.Concurrency)
 	c := d.Collector
 	if d.AutoTermDur > 0 {
-		ctx = c.AutoTerm(ctx, "LIST", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
+		ctx = c.AutoTerm(ctx, "Listonly", d.AutoTermScale, autoTermCheck, autoTermSamples, d.AutoTermDur)
 	}
 	// Non-terminating context.
 	nonTerm := context.Background()
@@ -177,14 +196,14 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 				client, cldone := d.Client()
 				op := Operation{
 					File:     prefix,
-					OpType:   "LIST",
+					OpType:   "Listonly",
 					Thread:   uint16(i),
 					Size:     0,
 					Endpoint: client.EndpointURL().String(),
 				}
 				op.Start = time.Now()
 
-				// List all objects with prefix
+				// Listonly all objects with prefix
 				listCh := client.ListObjects(nonTerm, d.Bucket, minio.ListObjectsOptions{WithMetadata: true, Prefix: objs[0].Prefix, Recursive: true})
 
 				// Wait for errCh to close.
@@ -219,6 +238,6 @@ func (d *List) Start(ctx context.Context, wait chan struct{}) (Operations, error
 }
 
 // Cleanup deletes everything uploaded to the bucket.
-func (d *List) Cleanup(ctx context.Context) {
+func (d *Listonly) Cleanup(ctx context.Context) {
 	d.deleteAllInBucket(ctx, generator.MergeObjectPrefixes(d.objects)...)
 }

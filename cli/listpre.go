@@ -19,45 +19,49 @@ package cli
 
 import (
 	"github.com/minio/cli"
-	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio/pkg/console"
 	"github.com/minio/warp/pkg/bench"
 )
 
 var (
-	putFlags = []cli.Flag{
+	listpreFlags = []cli.Flag{
+		cli.IntFlag{
+			Name:  "objects",
+			Value: 10000,
+			Usage: "Number of objects to upload. Rounded to have equal concurrent objects.",
+		},
 		cli.StringFlag{
 			Name:  "obj.size",
-			Value: "10MiB",
-			Usage: "Size of each generated object. Can be a number or 10KiB/MiB/GiB. All sizes are base 2 binary.",
+			Value: "1KB",
+			Usage: "Size of each generated object. Can be a number or 10KB/MB/GB. All sizes are base 2 binary.",
 		},
 	}
 )
 
-// Put command.
-var putCmd = cli.Command{
-	Name:   "put",
-	Usage:  "benchmark put objects",
-	Action: mainPut,
+var listpreCmd = cli.Command{
+	Name:   "listpre",
+	Usage:  "prepare list objects",
+	Action: mainListpre,
 	Before: setGlobalsFromContext,
-	Flags:  combineFlags(globalFlags, ioFlags, putFlags, genFlags, benchFlags, analyzeFlags),
+	Flags:  combineFlags(globalFlags, ioFlags, listFlags, genFlags, benchFlags, analyzeFlags),
 	CustomHelpTemplate: `NAME:
-  {{.HelpName}} - {{.Usage}}
-
-USAGE:
-  {{.HelpName}} [FLAGS]
-  -> see https://github.com/minio/warp#put
-
-FLAGS:
-  {{range .VisibleFlags}}{{.}}
-  {{end}}`,
+   {{.HelpName}} - {{.Usage}}
+ 
+ USAGE:
+   {{.HelpName}} [FLAGS]
+   -> see https://github.com/minio/warp#list
+ 
+ FLAGS:
+   {{range .VisibleFlags}}{{.}}
+   {{end}}`,
 }
 
-// mainPut is the entry point for cp command.
-func mainPut(ctx *cli.Context) error {
-	checkPutSyntax(ctx)
+// mainDelete is the entry point for get command.
+func mainListpre(ctx *cli.Context) error {
+	checkListSyntax(ctx)
 	src := newGenSource(ctx)
-	b := bench.Put{
+
+	b := bench.Listpre{
 		Common: bench.Common{
 			Client:      newClient(ctx),
 			Concurrency: ctx.Int("concurrent"),
@@ -66,21 +70,13 @@ func mainPut(ctx *cli.Context) error {
 			Location:    "",
 			PutOpts:     putOpts(ctx),
 		},
-	}
-	return runBench(ctx, &b) ///b: Client:github.com/minio/warp/cli.newClient.func1; Concurrency:20; Bucket:"warp-benchmark-bucket"
+		CreateObjects: ctx.Int("objects"),
+		NoPrefix:      ctx.Bool("noprefix"),
+	} //b CreateObjects:10000
+	return runBench(ctx, &b)
 }
 
-// putOpts retrieves put options from the context.
-func putOpts(ctx *cli.Context) minio.PutObjectOptions {
-	return minio.PutObjectOptions{
-		ServerSideEncryption: newSSE(ctx),
-		DisableMultipart:     ctx.Bool("disable-multipart"),
-		SendContentMd5:       ctx.Bool("md5"),
-		StorageClass:         ctx.String("storage-class"),
-	}
-}
-
-func checkPutSyntax(ctx *cli.Context) {
+func checkListpreSyntax(ctx *cli.Context) {
 	if ctx.NArg() > 0 {
 		console.Fatal("Command takes no arguments")
 	}
